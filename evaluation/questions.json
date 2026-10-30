@@ -1,0 +1,69 @@
+[
+    {
+        "id": "Q01",
+        "question": "What is retrieval-augmented generation?",
+        "expected_answer": "Replace with the verified answer from rag_research_paper.pdf.",
+        "relevant_sources": [
+            {
+                "source": "rag_research_paper.pdf",
+                "page": 1
+            }
+        ],
+        "key_points": [
+            "retrieves external information",
+            "provides context to a language model"
+        ]
+    },
+    {
+        "id": "Q02",
+        "question": "How are text embeddings used in semantic search?",
+        "expected_answer": "Replace with the verified answer from embeddings_guide.pdf.",
+        "relevant_sources": [
+            {
+                "source": "embeddings_guide.pdf",
+                "page": 1
+            }
+        ],
+        "key_points": [
+            "represents text as vectors",
+            "compares semantic similarity"
+        ]
+    },
+    {
+        "id": "Q03",
+        "question": "How does ChromaDB store and retrieve document embeddings?",
+        "expected_answer": "Replace with the verified answer from chroma_guide.pdf.",
+        "relevant_sources": [
+            {
+                "source": "chroma_guide.pdf",
+                "page": 1
+            }
+        ],
+        "key_points": [
+            "stores embeddings",
+            "retrieves similar records"
+        ]
+    },
+    {
+        "id": "Q04",
+        "question": "How do you generate a response using the Gemini API?",
+        "expected_answer": "Replace with the verified answer from gemini_api_guide.pdf.",
+        "relevant_sources": [
+            {
+                "source": "gemini_api_guide.pdf",
+                "page": 1
+            }
+        ],
+        "key_points": [
+            "uses the Gemini API",
+            "sends a prompt to the model"
+        ]
+    },
+    {
+        "id": "Q05",
+        "question": "What should a RAG system do if the documents do not contain the answer?",
+        "expected_answer": "It should state that the available evidence is insufficient rather than inventing an answer.",
+        "relevant_sources": [],
+        "key_points": []
+    }
+]

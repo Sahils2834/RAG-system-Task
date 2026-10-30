@@ -1,4 +1,91 @@
-.env
+
+# ==========================================
+# Python environment
+# ==========================================
 .venv/
+venv/
+env/
+ENV/
 __pycache__/
+*.py[cod]
+*$py.class
+.python-version
+
+# Python packaging and test artifacts
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ==========================================
+# Secrets and environment variables
+# ==========================================
+.env
+.env.*
+!.env.example
+
+# ==========================================
+# RAG vector database
+# ==========================================
 chroma_db/
+chroma_db-*/
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+
+# ==========================================
+# React / Vite frontend
+# ==========================================
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/coverage/
+
+# Frontend environment files
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# ==========================================
+# Data and document files
+# ==========================================
+# Keep your PDFs locally unless you explicitly
+# want to publish them with the repository.
+data/*.pdf
+PDF/
+PDF/**/*.pdf
+
+# Generated datasets and large archives
+*.zip
+*.7z
+*.rar
+
+# ==========================================
+# Evaluation and generated outputs
+# ==========================================
+results/
+evaluation/results/
+evaluation/output/
+*.log
+
+# ==========================================
+# IDE and operating system
+# ==========================================
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.swp
+*.swo
+
+# ==========================================
+# Temporary files
+# ==========================================
+*.tmp
+*.temp
+*.bak

@@ -1,5 +1,7 @@
-google-genai
+
 chromadb
 pymupdf
-python-dotenv
 sentence-transformers
+google-genai
+python-dotenv
+torch
