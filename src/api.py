@@ -28,7 +28,7 @@ client = genai.Client(api_key=API_KEY) if API_KEY else None
 app = FastAPI(
     title="Document RAG API",
     description="Ask questions about your indexed PDF documents.",
-    version="1.0.0",
+    version="1.1.0",
 )
 
 app.add_middleware(
@@ -98,13 +98,19 @@ def chat(request: ChatRequest):
             detail="Please enter a question.",
         )
 
+    request_start = time.perf_counter()
+
     try:
-        # Retrieve relevant chunks from your existing ChromaDB.
-        results = retrieve(
+        # ------------------------------------------
+        # Step 1: Retrieve and rerank relevant chunks
+        # ------------------------------------------
+
+        results, retrieval_timings = retrieve(
             question,
-            top_k=4,
-            candidate_k=12,
+            top_k=3,
+            candidate_k=6,
             use_reranker=True,
+            return_timings=True,
         )
 
         if not results:
@@ -114,16 +120,26 @@ def chat(request: ChatRequest):
                     "documents. Please try rephrasing your question."
                 ),
                 "sources": [],
-                "latency_seconds": 0,
+                "latency_seconds": round(
+                    time.perf_counter() - request_start, 3
+                ),
+                "timings": {
+                    **retrieval_timings,
+                    "generation_seconds": 0.0,
+                },
             }
+
+        # ------------------------------------------
+        # Step 2: Build the context and source list
+        # ------------------------------------------
 
         context_blocks = []
         sources = []
 
         for index, result in enumerate(results, start=1):
             source_id = f"S{index}"
-            source = result.get("source", "unknown")
-            page = result.get("page")
+            source = result.get("source", "Unknown source")
+            page = result.get("page", "?")
             text = result.get("text", "")
 
             context_blocks.append(
@@ -142,75 +158,114 @@ def chat(request: ChatRequest):
                 "rerank_score": result.get("rerank_score"),
             })
 
+        # ------------------------------------------
+        # Step 3: Limit conversation history
+        # ------------------------------------------
+
         history_text = "\n".join(
-            f"{message.role.upper()}: {message.content}"
-            for message in request.history[-10:]
+            f"{message.role.upper()}: {message.content[:2000]}"
+            for message in request.history[-6:]
         )
 
+        # ------------------------------------------
+        # Step 4: Build the grounded prompt
+        # ------------------------------------------
+
         prompt = f"""
-You are a helpful assistant answering questions about documents.
+You are a helpful assistant that answers questions using the
+provided document excerpts.
 
-RULES:
-- Ground factual claims in the supplied document context.
-- Use exact citation identifiers such as [S1] for supporting claims.
-- Never invent sources or citation identifiers.
-- If the documents do not provide enough evidence, clearly say so.
-- Conversation history helps interpret follow-up questions, but is not
-  evidence. Use the current document context to support factual claims.
-- If the user asks a follow-up, use the conversation history to
-  understand what they mean.
-- Do not claim that a source supports a statement unless its content
-  actually supports that statement.
+Rules:
+- Ground document-specific factual claims in the excerpts.
+- Cite supporting passages with identifiers such as [S1] or [S2].
+- Never invent source identifiers.
+- If the excerpts do not contain enough evidence, say so clearly.
+- Conversation history helps interpret follow-up questions but is
+  not evidence for document-specific factual claims.
+- Be concise, accurate, and easy to understand.
+- Do not claim a passage supports something it does not say.
 
-CONVERSATION HISTORY:
+Conversation history:
 {history_text or "(No previous messages)"}
 
-DOCUMENT CONTEXT:
+Document excerpts:
 {chr(10).join(context_blocks)}
 
-CURRENT QUESTION:
+Current question:
 {question}
 
-Answer clearly. Cite factual statements using the source identifiers.
+Answer using the excerpts and cite relevant source identifiers.
 """
 
-        start = time.perf_counter()
+        # ------------------------------------------
+        # Step 5: Generate the answer with Gemini
+        # ------------------------------------------
+
+        generation_start = time.perf_counter()
 
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=prompt,
         )
 
-        latency = round(time.perf_counter() - start, 3)
-        answer = response.text or "The model returned an empty response."
+        generation_seconds = time.perf_counter() - generation_start
+
+        answer = response.text or (
+            "The model returned an empty response. Please try again."
+        )
+
+        total_seconds = time.perf_counter() - request_start
+
+        timings = {
+            **retrieval_timings,
+            "generation_seconds": round(generation_seconds, 4),
+            "total_seconds": round(total_seconds, 4),
+        }
+
+        print(
+            f"RAG timings | "
+            f"embedding={timings['embedding_seconds']:.3f}s | "
+            f"vector_search={timings['vector_search_seconds']:.3f}s | "
+            f"reranking={timings['reranking_seconds']:.3f}s | "
+            f"generation={timings['generation_seconds']:.3f}s | "
+            f"total={timings['total_seconds']:.3f}s"
+        )
 
         return {
             "answer": answer,
             "sources": sources,
-            "latency_seconds": latency,
+            "latency_seconds": round(total_seconds, 3),
+            "timings": timings,
         }
+
+    except HTTPException:
+        raise
 
     except Exception as exc:
         message = str(exc)
         lowered = message.lower()
 
+        print(f"RAG API error: {type(exc).__name__}: {message}")
+
         if (
             "429" in message
             or "resource_exhausted" in lowered
             or "quota" in lowered
+            or "rate limit" in lowered
         ):
             raise HTTPException(
                 status_code=429,
                 detail=(
                     "Gemini API quota is exhausted or rate-limited. "
-                    "Your retrieval database is unaffected. Please "
-                    "check your Gemini API quota and try again later."
+                    "Retrieval may still work. Check your Gemini quota "
+                    "and try again when requests are available."
                 ),
             ) from exc
 
         if (
             "503" in message
             or "unavailable" in lowered
+            or "overloaded" in lowered
         ):
             raise HTTPException(
                 status_code=503,
@@ -220,9 +275,10 @@ Answer clearly. Cite factual statements using the source identifiers.
                 ),
             ) from exc
 
-        print(f"RAG API error: {type(exc).__name__}: {exc}")
-
         raise HTTPException(
             status_code=500,
-            detail="An internal error occurred while answering your question.",
+            detail=(
+                "An internal error occurred while answering your question. "
+                "Check the backend terminal for details."
+            ),
         ) from exc
