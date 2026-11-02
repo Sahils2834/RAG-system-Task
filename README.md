@@ -1,388 +1,708 @@
-# DocuMind --- Document RAG Assistant
+# DocuMind — Document RAG Assistant
 
-DocuMind is a Retrieval-Augmented Generation (RAG) application that
-answers questions using passages retrieved from a local collection of
-PDF documents. It combines dense-vector retrieval, optional CrossEncoder
-reranking, and Gemini-based answer generation in a React chat interface.
+DocuMind is a Retrieval-Augmented Generation (RAG) application that answers questions using relevant passages retrieved from a local collection of PDF documents.
 
-> **Important:** Answers are AI-generated. Verify important claims
-> against the cited PDF passages.
+It combines dense-vector semantic retrieval, CrossEncoder reranking, and Gemini-based answer generation in a React chat interface.
+
+The application allows users to index document collections, ask natural-language questions, retrieve relevant passages, and receive contextual answers with source references and page numbers.
+
+> **Important:** Answers are AI-generated. Always verify important claims against the cited PDF passages.
+
+---
 
 ## Features
 
--   Extracts text from PDF documents and splits it into overlapping
-    chunks.
--   Generates text embeddings with `all-MiniLM-L6-v2`.
--   Stores document chunks and metadata in a persistent local ChromaDB
-    collection.
--   Retrieves candidate passages using vector similarity.
--   Optionally reranks candidates with
-    `cross-encoder/ms-marco-MiniLM-L-6-v2`.
--   Sends retrieved context to Gemini to generate an answer with source
-    labels.
--   Exposes a FastAPI backend and a React + Vite frontend.
--   Displays source document names, page numbers, and retrieved
-    passages.
+- Extracts text from PDF documents.
+- Splits extracted content into overlapping text chunks.
+- Generates text embeddings using `all-MiniLM-L6-v2`.
+- Stores document chunks and metadata in a persistent ChromaDB collection.
+- Retrieves relevant passages using dense-vector similarity search.
+- Reranks retrieved candidates using `cross-encoder/ms-marco-MiniLM-L-6-v2`.
+- Generates contextual answers using the Gemini API.
+- Maintains conversation history for follow-up questions.
+- Provides source identifiers, document names, page numbers, and retrieved passages.
+- Uses FastAPI for backend services.
+- Provides a React and Vite-based chat interface.
+- Includes performance diagnostics for retrieval and generation.
 
-## Architecture
+---
 
-``` text
-PDF files
-   |
-   v
-src/ingest.py
-   |  extract text, chunk, embed
-   v
-ChromaDB (chroma_db/)
-   |
-   v
-React frontend (frontend/)
-   |  POST /api/chat
-   v
-FastAPI (src/api.py)
-   |
-   +--> src/retrieve.py
-   |      1. Embed question
-   |      2. Retrieve candidates from ChromaDB
-   |      3. Rerank candidates with CrossEncoder
-   |
-   +--> Gemini API
-          Generate answer using retrieved context
-   |
-   v
-Answer + source metadata returned to the frontend
+## Technology Stack
+
+| Component | Technology |
+|---|---|
+| Frontend | React.js, Vite |
+| Backend | Python, FastAPI |
+| LLM | Google Gemini API |
+| Embedding Model | all-MiniLM-L6-v2 |
+| Reranking Model | cross-encoder/ms-marco-MiniLM-L-6-v2 |
+| Vector Database | ChromaDB |
+| PDF Processing | PyMuPDF |
+| Semantic Search | Sentence Transformers |
+| API Communication | REST API |
+| Environment Management | Python dotenv |
+
+---
+
+## System Architecture
+
+```text
+                  PDF DOCUMENTS
+                        |
+                        v
+                  PDF INGESTION
+                   src/ingest.py
+                        |
+             Extract text from PDFs
+                        |
+                Split into chunks
+                        |
+                Generate embeddings
+                        |
+                        v
+                   CHROMADB
+                  chroma_db/
+                        |
+                        v
+                  USER QUESTION
+                        |
+                        v
+                 REACT FRONTEND
+                  frontend/
+                        |
+                   POST /api/chat
+                        |
+                        v
+                  FASTAPI BACKEND
+                   src/api.py
+                        |
+                        v
+                  RETRIEVAL ENGINE
+                  src/retrieve.py
+                        |
+              Generate query embedding
+                        |
+                        v
+               CHROMADB VECTOR SEARCH
+                        |
+               Retrieve candidate chunks
+                        |
+                        v
+                CROSSENCODER RERANKING
+                        |
+                 Select top passages
+                        |
+                        v
+                BUILD DOCUMENT CONTEXT
+                        |
+                        v
+                   GEMINI API
+                        |
+              Generate grounded answer
+                        |
+                        v
+                ANSWER + SOURCES
+                        |
+                        v
+                 REACT FRONTEND
 ```
 
-## Project structure
+---
 
-``` text
+## Project Structure
+
+```text
 document-rag/
-├── data/                  # Source PDFs to ingest
+│
+├── data/
+│   └── Source PDF documents
+│
 ├── evaluation/
-│   └── questions.json     # Evaluation questions (if configured)
+│   └── questions.json
+│
 ├── frontend/
 │   ├── src/
 │   │   ├── App.jsx
 │   │   ├── App.css
 │   │   └── index.css
-│   ├── .env               # Frontend API URL; no secret keys here
+│   │
+│   ├── .env
 │   └── package.json
-├── chroma_db/             # Persistent local vector database (generated)
-├── results/               # Evaluation outputs (generated, if used)
+│
+├── chroma_db/
+│   └── Persistent vector database
+│
+├── results/
+│   └── Evaluation outputs
+│
 ├── src/
-│   ├── api.py             # FastAPI routes
-│   ├── evaluate.py        # Retrieval/generation evaluation
-│   ├── generate.py        # CLI generation / RAG comparison
-│   ├── ingest.py          # PDF ingestion and indexing
-│   └── retrieve.py        # Dense retrieval and reranking
-├── tests/                 # Tests (if present)
-├── .env                   # Gemini API key and model configuration
+│   ├── api.py
+│   ├── evaluate.py
+│   ├── generate.py
+│   ├── ingest.py
+│   └── retrieve.py
+│
+├── tests/
+│
+├── .env
 ├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
 
-The exact files and generated folders can vary by local setup.
+The exact generated folders and files may vary depending on the local configuration.
+
+---
 
 ## Requirements
 
--   Python 3.10 or later (use the Python version tested with your
-    dependencies)
--   Node.js and npm
--   A Gemini API key
--   PDF documents that you are permitted to use
+- Python 3.10 or later.
+- Node.js and npm.
+- A Google Gemini API key.
+- PDF documents that you are authorized to process.
 
-## Setup
+---
 
-### 1. Create and activate a Python virtual environment
+## Installation and Setup
 
-From the repository root in Windows PowerShell:
+### 1. Clone the Repository
 
-``` powershell
+```bash
+git clone https://github.com/Sahils2834/RAG-system-Task.git
+
+cd RAG-system-Task
+```
+
+### 2. Create a Python Virtual Environment
+
+```powershell
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
 ```
 
-If PowerShell blocks activation, you can run the project's Python
-executable directly instead:
+Activate the environment:
 
-``` powershell
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+```powershell
+.venv\Scripts\Activate.ps1
 ```
 
-Install dependencies:
+If PowerShell blocks activation, use the virtual environment's Python executable directly.
 
-``` powershell
+### 3. Install Backend Dependencies
+
+```bash
 python -m pip install -r requirements.txt
 ```
 
-If `requirements.txt` does not yet contain the API dependencies, install
-them with:
+If the required API dependencies are not included in `requirements.txt`, install:
 
-``` powershell
+```bash
 python -m pip install fastapi "uvicorn[standard]" python-dotenv google-genai
 ```
 
-### 2. Configure environment variables
+### 4. Configure Environment Variables
 
-Create a root `.env` file:
+Create a `.env` file in the project root:
 
-``` env
+```env
 GEMINI_API_KEY=your_gemini_api_key_here
 GEMINI_MODEL=gemini-3.8-flash
 ```
 
-Use a model name available to your Gemini API project. Never commit
-`.env` or expose the API key in frontend code.
+Replace the placeholder with your actual Gemini API key.
 
-### 3. Add documents
+**Security note:** Never commit your `.env` file or expose API keys in frontend code.
 
-Place the PDF files you want to search in `data/`. Use documents you are
-authorized to process.
+### 5. Add PDF Documents
 
-### 4. Ingest and index PDFs
+Place the PDF documents you want DocuMind to process inside the `data/` directory.
 
-Run from the repository root:
+Example:
 
-``` powershell
+```text
+data/
+├── rag_research_paper.pdf
+├── embeddings_guide.pdf
+├── gemini_api_guide.pdf
+└── chroma_guide.pdf
+```
+
+The filenames above are examples. Add the documents available in your own collection.
+
+### 6. Ingest and Index PDF Documents
+
+Run the following command from the project root:
+
+```bash
 python -m src.ingest
 ```
 
-This extracts document text, creates chunks, embeds them, and stores the
-vectors and metadata in `chroma_db/`. Re-run ingestion after changing
-the source documents or ingestion settings. Do not delete the database
-unless you intend to rebuild the index.
+The ingestion pipeline:
 
-### 5. Start the FastAPI backend
+1. Extracts text from PDF documents.
+2. Splits the extracted text into overlapping chunks.
+3. Generates embeddings for each chunk.
+4. Stores embeddings and metadata in ChromaDB.
 
-In a terminal at the repository root:
+The resulting vector database is stored locally in:
 
-``` powershell
+```text
+chroma_db/
+```
+
+Run ingestion again whenever you add or change source documents or ingestion settings.
+
+### 7. Start the FastAPI Backend
+
+From the project root:
+
+```bash
 python -m uvicorn src.api:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Useful endpoints:
+The backend runs at:
 
--   API root: `http://127.0.0.1:8000/`
--   Health check: `http://127.0.0.1:8000/api/health`
--   Interactive API docs: `http://127.0.0.1:8000/docs`
+`http://127.0.0.1:8000`
 
-The health endpoint checks whether the API is running and whether a
-Gemini key is configured. It does not prove that a generation request
-will succeed.
+Available endpoints:
 
-### 6. Start the React frontend
+| Endpoint | Description |
+|---|---|
+| `/` | API root |
+| `/api/health` | Backend health check |
+| `/api/chat` | Chat and RAG endpoint |
+| `/docs` | Interactive API documentation |
 
-Open another terminal:
+The health endpoint checks whether the backend is running and whether a Gemini API key is configured. It does not guarantee that every generation request will succeed.
 
-``` powershell
+### 8. Start the React Frontend
+
+Open a second terminal:
+
+```bash
 cd frontend
+```
+
+Install frontend dependencies:
+
+```bash
 npm install
 ```
 
-Create `frontend/.env`:
+Create a `.env` file inside the `frontend/` directory:
 
-``` env
+```env
 VITE_API_URL=http://127.0.0.1:8000
 ```
 
-Then run:
+Start the frontend:
 
-``` powershell
+```bash
 npm run dev
 ```
 
-Open the local URL printed by Vite, commonly `http://localhost:5173`.
+Open the local URL displayed by Vite, usually:
 
-Keep the backend and frontend terminals running while using DocuMind.
+`http://localhost:5173`
 
-## How retrieval works
+Keep both backend and frontend terminals running while using DocuMind.
 
-1.  **Ingestion:** PDF text is extracted and split into overlapping
-    chunks.
-2.  **Embedding:** Each chunk is represented as a dense vector using
-    `all-MiniLM-L6-v2`.
-3.  **Initial retrieval:** The question is embedded and ChromaDB returns
-    a set of candidate chunks using vector distance.
-4.  **Reranking:** The CrossEncoder scores each
-    `(question, candidate passage)` pair and reorders the candidate
-    list.
-5.  **Context construction:** The top passages are added to the Gemini
-    prompt with source identifiers such as `[S1]`.
-6.  **Generation:** Gemini produces an answer based on the question,
-    conversation history, and retrieved passages.
-7.  **Display:** The UI shows the answer, source metadata, and retrieved
-    excerpts.
+---
 
-### Understanding the scores
+## How the RAG Pipeline Works
 
--   **Vector distance/similarity:** Used during initial vector search to
-    find semantically similar candidates. In this project's ChromaDB
-    output, the field is called `distance`; lower is closer for the
-    configured distance metric. Do not label a distance as a similarity
-    score without checking the metric and conversion.
--   **CrossEncoder reranking score:** Computed from the question and
-    each candidate passage together. It is used to reorder the retrieved
-    candidates. The score is a ranking value, not necessarily a
-    calibrated probability.
--   **Latency:** The API's `latency_seconds` measures the Gemini
-    generation call in the current implementation; it may not include
-    embedding, ChromaDB retrieval, reranking, or frontend/network time.
+DocuMind uses a multi-stage retrieval and generation process.
 
-## Evaluation: RAG vs. plain Gemini
+### 1. Document Ingestion
 
-### Goal
+PDF documents are processed to extract their text content.
 
-Check whether providing retrieved document context helps answer a
-question grounded in the actual indexed PDFs.
+The extracted text is divided into smaller overlapping chunks to make retrieval more focused and efficient.
 
-### Test question
+### 2. Embedding Generation
 
-> According to the documents in my knowledge base, what is the
-> difference between the similarity score used to rank semantic search
-> results and the reranking score produced by a CrossEncoder? Explain
-> how each is used in the retrieval pipeline.
+Each text chunk is converted into a numerical vector using:
 
-Use the **same exact question** for both runs.
+`all-MiniLM-L6-v2`
 
-### Observed plain-Gemini result
+These embeddings represent the semantic meaning of the text.
 
-The plain Gemini response gave a detailed general explanation of
-bi-encoder/vector similarity and CrossEncoder reranking. However, it
-referred to Reliance Industries annual-report excerpts and a
-compiler-phases overview, which were not the relevant DocuMind technical
-source documents in the displayed comparison. It did not establish its
-answer using the user's indexed PDF passages.
+### 3. Initial Semantic Retrieval
 
-**Interpretation:** The answer may be technically useful as general
-background, but it is not evidence of document-grounded retrieval.
+When a user submits a question:
 
-### Observed DocuMind result
+- The question is converted into an embedding.
+- ChromaDB searches for semantically similar document chunks.
+- A set of candidate passages is retrieved.
 
-DocuMind reported that the supplied excerpts did not mention similarity
-scores, CrossEncoders, or retrieval pipelines. It then described the
-two-stage retrieval/reranking workflow using the passages it cited.
+### 4. CrossEncoder Reranking
 
-**Interpretation:** The response showed an important grounding behavior
-by flagging a lack of direct evidence. However, because it continued
-with a general explanation, the prompt should make a clearer distinction
-between statements supported by retrieved passages and outside
-background knowledge. The answer should not be treated as fully
-source-grounded unless the cited passages actually support each claim.
+The retrieved candidates are passed to:
 
-### Comparison
+`cross-encoder/ms-marco-MiniLM-L-6-v2`
 
-  -----------------------------------------------------------------------
-  Criterion               Plain Gemini            DocuMind RAG
-  ----------------------- ----------------------- -----------------------
-  Uses passages retrieved No                      Yes, by design
-  from the local ChromaDB                         
-  index                                           
+The CrossEncoder evaluates the relationship between the user's question and each candidate passage.
 
-  Provides a detailed     Yes                     Yes
-  general explanation                             
+It assigns ranking scores and reorders the retrieved passages according to their relevance.
 
-  Demonstrates support    Not in the observed     It identified that
-  from the relevant       answer                  direct support was
-  indexed PDFs                                    missing; cited passages
-                                                  must be checked
+### 5. Context Construction
 
-  Uses the local document Not demonstrated        Partially demonstrated;
-  set as evidence                                 source support needs
-                                                  verification
+The highest-ranked passages are assembled into a contextual prompt.
 
-  Overall finding         General-knowledge       Better awareness of
-                          answer, not a valid     missing evidence, but
-                          document-grounded       the response prompt and
-                          baseline                evidence need
-                                                  tightening
-  -----------------------------------------------------------------------
+Each passage receives a source identifier, such as:
 
-### Conclusion
+- `[S1]`
+- `[S2]`
+- `[S3]`
 
-This run does **not yet prove that DocuMind answers the question more
-accurately than plain Gemini**. It demonstrates the intended RAG
-workflow and highlights why source-grounding checks matter. To make a
-strong submission, select a question whose answer is explicitly present
-in one of the indexed PDFs, run it through both systems, and compare
-each claim against the exact source passage and page. Report the actual
-results without assuming RAG always wins.
+These identifiers allow Gemini to refer to the retrieved passages in its response.
 
-### Recommended follow-up test
+### 6. Answer Generation
 
-The embeddings guide contains material on semantic search and vector
-spaces. A more directly supported question to test is:
+The contextual prompt is sent to Gemini.
 
-> According to the embeddings guide, what is the difference between
-> symmetric and asymmetric semantic search, and when is each used?
+The model generates an answer using the current question, relevant retrieved passages, and conversation history.
 
-Before using this as final evidence, inspect the retrieved source
-passage and confirm that it answers both parts of the question. For the
-plain-Gemini run, do not upload or paste the PDF; for DocuMind, use the
-indexed PDF and save the displayed source name and page number.
+### 7. Source Display
+
+The backend returns:
+
+- Generated answer.
+- Source document names.
+- Page numbers.
+- Retrieved passages.
+- Retrieval and generation performance timings.
+- Generation finish reason.
+
+The React frontend displays the answer and its associated source information.
+
+---
+
+## Understanding Retrieval Scores and Performance
+
+### Vector Distance
+
+Vector distance is used during the initial ChromaDB search to identify semantically similar candidate passages.
+
+The API returns this value under the `distance` field.
+
+For the configured distance metric, a lower distance indicates a closer match.
+
+A distance value should not automatically be interpreted as a similarity percentage.
+
+### CrossEncoder Reranking Score
+
+The CrossEncoder calculates a relevance score using the question and candidate passage together.
+
+This score helps reorder the initial retrieval results.
+
+It is a ranking value and should not automatically be interpreted as a calibrated probability.
+
+### Performance Metrics
+
+DocuMind records:
+
+- Retrieval and reranking time.
+- Gemini generation time.
+- Total request time.
+- Prompt token count, where available.
+- Output token count, where available.
+- Generation finish reason.
+
+These metrics help identify performance bottlenecks and monitor the response-generation process.
+
+---
+
+# Evaluation: RAG vs. Without RAG
+
+## 1. Objective
+
+The purpose of this experiment is to demonstrate the difference between conventional LLM-based question answering and Retrieval-Augmented Generation.
+
+The experiment uses a question whose answer is available in the indexed `embeddings_guide.pdf`.
+
+The same question is used for both approaches.
+
+### Evaluation Question
+
+> According to the Embeddings Guide, explain symmetric and asymmetric semantic search in detail. Include their definitions, differences, suitable models, encoding methods, use cases, and examples. Present the comparison in a table and cite the relevant pages.
+
+---
+
+## 2. Experiment A: Without RAG (Plain Gemini)
+
+### Methodology
+
+In the non-RAG approach:
+
+1. The question is submitted directly to Gemini.
+2. No local PDF documents are retrieved.
+3. ChromaDB is not used.
+4. CrossEncoder reranking is not performed.
+5. Gemini generates a response using its existing model knowledge.
+
+### Expected Characteristics
+
+A plain LLM can provide a general explanation of symmetric and asymmetric semantic search.
+
+For example:
+
+- Symmetric semantic search involves queries and corpus entries with approximately similar lengths and content.
+- Asymmetric semantic search involves a short query retrieving a longer passage.
+- Symmetric search can be used for similar-question retrieval.
+- Asymmetric search can be used for information retrieval and question answering.
+
+However, without the PDF context, the response cannot establish that its statements, examples, and page references correspond to the actual indexed Embeddings Guide.
+
+**Limitation:** This describes the expected non-RAG baseline. A separate measured output for this exact question has not been included in the experiment results.
+
+---
+
+## 3. Experiment B: With RAG (DocuMind)
+
+### Methodology
+
+The same evaluation question is submitted through DocuMind.
+
+The system:
+
+1. Embeds the user's question.
+2. Searches the indexed Embeddings Guide using ChromaDB.
+3. Retrieves relevant document chunks.
+4. Reranks the candidate passages using the CrossEncoder.
+5. Sends the retrieved passages to Gemini.
+6. Generates a contextual answer.
+7. Returns source references and page numbers.
+
+### Observed Result
+
+DocuMind successfully generated a detailed response explaining both symmetric and asymmetric semantic search.
+
+The response included the following information.
+
+### A. Symmetric Semantic Search
+
+**Definition:**
+
+Symmetric semantic search involves queries and corpus entries that have approximately the same length and amount of content.
+
+In these tasks, the query and corpus entries can potentially be interchanged.
+
+**Suitable models:**
+
+- Pretrained sentence embedding models.
+- `distilbert-multilingual-nli-stsb-quora-ranking`.
+- `SPECTER`.
+
+**Encoding method:**
+
+The general `SentenceTransformer.encode()` method can be used.
+
+**Use cases:**
+
+- Similar-question retrieval.
+- Duplicate question detection.
+- Similar scientific publication retrieval.
+
+**Example:**
+
+Query:
+
+"How to learn Python online?"
+
+Retrieved entry:
+
+"How to learn Python on the web?"
+
+### B. Asymmetric Semantic Search
+
+**Definition:**
+
+Asymmetric semantic search involves a short query, such as a question or keywords, being used to retrieve a longer paragraph or document passage.
+
+Unlike symmetric search, the query and corpus entries generally cannot be interchanged.
+
+**Suitable models:**
+
+- Pretrained MS MARCO models.
+
+**Encoding methods:**
+
+- `SentenceTransformer.encode_query()` for query encoding.
+- `SentenceTransformer.encode_document()` for corpus document encoding.
+
+These methods can use predefined query and document prompts and support appropriate task routing in models equipped with a Router module.
+
+**Use cases:**
+
+- Information retrieval.
+- Question answering.
+- Retrieving explanatory passages from longer documents.
+
+**Example:**
+
+Query:
+
+"What is Python?"
+
+Retrieved passage:
+
+"Python is an interpreted, high-level and general-purpose programming language. Python's design philosophy ..."
+
+### C. Retrieved Source References
+
+The generated DocuMind response included these source references:
+
+| Source | Page | Retrieved information |
+|---|---:|---|
+| embeddings_guide.pdf | 10 | Symmetric and asymmetric search definitions and encoding approaches |
+| embeddings_guide.pdf | 9 | Characteristics of symmetric semantic search |
+| embeddings_guide.pdf | 16 | Model examples and applications |
+
+The response included explanations, examples, a comparison table, and citations to the relevant PDF pages.
+
+---
+
+## 4. Comparison: Without RAG vs. With RAG
+
+| Evaluation Criterion | Without RAG | DocuMind with RAG |
+|---|---|---|
+| Uses local indexed PDFs | No | Yes |
+| Retrieves document passages | No | Yes |
+| Performs vector similarity search | No | Yes |
+| Uses CrossEncoder reranking | No | Yes |
+| Generates natural-language answers | Yes | Yes |
+| Uses document-specific context | Not provided | Yes |
+| Provides source document references | Not guaranteed | Yes |
+| Provides PDF page references | Not guaranteed | Yes |
+| Supports document-grounded responses | Not through retrieval | Yes, through retrieved context |
+| Maintains conversation context | Depends on implementation | Supported |
+
+---
+
+## 5. Experimental Conclusion
+
+The experiment demonstrates the difference between general-purpose LLM generation and a document-based Retrieval-Augmented Generation workflow.
+
+Without RAG, Gemini can generate a general explanation based on its existing knowledge. However, it does not retrieve evidence from the local PDF collection.
+
+With RAG, DocuMind retrieves relevant passages from the indexed Embeddings Guide using ChromaDB, reranks the retrieved candidates using a CrossEncoder, and provides the selected passages to Gemini for answer generation.
+
+The observed DocuMind response successfully covered the requested concepts and included source document references and page numbers.
+
+This demonstrates the intended retrieval and source-grounding capabilities of DocuMind.
+
+However, citations and generated claims should still be checked against the original passages. The experiment demonstrates the RAG workflow; it does not establish that RAG is universally more accurate than plain Gemini.
+
+---
+
+## 6. Reproducing the Experiment
+
+To reproduce the DocuMind experiment:
+
+1. Place `embeddings_guide.pdf` in the `data/` directory.
+2. Run document ingestion if the document has not already been indexed.
+
+```bash
+python -m src.ingest
+```
+
+3. Start the FastAPI backend.
+
+```bash
+python -m uvicorn src.api:app --reload --host 127.0.0.1 --port 8000
+```
+
+4. Start the React frontend.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+5. Open DocuMind in the browser.
+6. Submit the evaluation question.
+7. Inspect the generated answer, retrieved source passages, and page references.
+
+For a non-RAG baseline, submit the exact same question directly to Gemini without providing the PDF or retrieved document context.
+
+---
 
 ## Troubleshooting
 
-### Gemini quota or rate limit
+### Gemini API Quota or Rate Limit
 
-A `429 RESOURCE_EXHAUSTED` response means the Gemini API request was
-rate-limited or the project's quota was exhausted. This is not a
-ChromaDB indexing failure. Check the current quota and retry when
-allowed. Avoid repeated test requests while the quota is exhausted.
+A `429 RESOURCE_EXHAUSTED` response indicates that the Gemini API request was rate-limited or the available quota was exhausted.
 
-### Slow first request
+This does not necessarily indicate a problem with ChromaDB or the retrieval pipeline.
 
-The first request may be slower because the embedding model and
-CrossEncoder weights need to be loaded. The CrossEncoder may also
-download weights on its first use. Later requests in the same running
-process should avoid that initial model-loading cost.
+Check your Gemini API quota and retry when requests are available.
 
-### Hugging Face unauthenticated warning
+### Gemini Temporarily Unavailable
 
-The warning about unauthenticated Hugging Face Hub requests is generally
-a download-rate notice, not an application error. It does not by itself
-mean retrieval failed.
+A `503` response may indicate that the model service is temporarily unavailable or overloaded.
 
-### No relevant passages
+Retry after some time.
 
--   Confirm PDFs exist in `data/`.
--   Re-run ingestion if the documents changed.
--   Confirm the expected ChromaDB collection exists and contains chunks.
--   Inspect the passages returned by `python -m src.retrieve` or the
-    project's retrieval test before relying on generated answers.
+### Slow First Request
 
-## Security and Git
+The first request can take longer because the embedding model and CrossEncoder weights may need to be loaded.
 
--   Keep `.env`, `.venv/`, `node_modules/`, model caches, and generated
-    ChromaDB files out of Git.
--   Do not commit private or copyrighted documents unless you have
-    permission to publish them.
--   Ensure `.gitignore` excludes local data/database files if they
-    should not be public. If the assignment requires reproducibility,
-    provide permitted sample documents or clear instructions for
-    supplying them.
+Subsequent requests in the same running process should avoid most of this initial model-loading overhead.
 
-## Future improvements
+### Hugging Face Authentication Warning
 
--   Add a fixed evaluation set with questions and expected supporting
-    passages.
--   Measure retrieval metrics such as Recall@K and MRR independently
-    from answer quality.
--   Evaluate citation support and whether each answer claim is entailed
-    by its cited passage.
--   Add an explicit "documents do not contain enough evidence" mode that
-    avoids unsupported general-knowledge additions.
--   Measure end-to-end latency separately from Gemini generation
-    latency.
--   Add automated tests for API errors, empty retrieval results, and
-    missing configuration.
+An unauthenticated Hugging Face Hub warning is generally related to download rate limits.
 
-## License and data
+It does not by itself indicate that the application or retrieval pipeline has failed.
 
-Add a license and document the provenance and usage rights of the PDFs
-before making the repository public.
+### No Relevant Passages Retrieved
 
-Backend cmd:python -m uvicorn src.api:app --reload --host 127.0.0.1 --port 8000
-frontend command :cd frontend
-                  npm install
-                  npm run dev    
+If DocuMind cannot find relevant passages:
+
+- Confirm that the PDFs exist in `data/`.
+- Run the ingestion pipeline again if documents have changed.
+- Verify that the ChromaDB collection contains indexed chunks.
+- Check the retrieved passages before relying on the generated answer.
+
+---
+
+## Security and Git Guidelines
+
+- Never commit `.env` files or API keys.
+- Keep `.venv/` and `node_modules/` out of Git.
+- Avoid committing generated model caches and local database files unless required.
+- Do not publish private or copyrighted PDF documents without permission.
+- Use `.gitignore` to exclude sensitive files and unnecessary generated content.
+- Provide instructions for supplying sample documents when reproducibility is required.
+
+---
+
+## Future Improvements
+
+Potential future improvements include:
+
+- Adding a fixed evaluation dataset with expected supporting passages.
+- Measuring retrieval metrics such as Recall@K and Mean Reciprocal Rank (MRR).
+- Evaluating citation correctness and source support.
+- Improving handling of questions with insufficient document evidence.
+- Measuring end-to-end response latency.
+- Supporting additional document formats.
+
+---
+
+## License and Data Usage
+
+A suitable software license and documentation of document provenance should be added before public distribution.
+
+Only publish documents for which you have the necessary permissions.
+
+---
+
+## Repository
+
+**GitHub:** https://github.com/Sahils2834/RAG-system-Task.git
+
+**Project:** DocuMind — Document RAG Assistant
+
+**Developer:** Sahil Shete
